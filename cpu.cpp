@@ -22,18 +22,18 @@
  */
 
 /*
- *	Flags add OK
- *	Flags sub 
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
+ *	VERIF :
+ * 
+ *	Flags add c OK - z OK - o OK - n OK
+ *	Flags sub c OK - z OK - o OK - n OK
+ *	Flags cmp c - z - o - n 
+ *	Flags and z - n 
+ *	Flags or  z - n 
+ *	Flags xor z - n 
+ *	Flags mul c - z - n 
+ *	Flags div c - z - n 
+ *	Flags shl z - n 
+ *	Flags shr z - n 
  *
  */
 
@@ -52,18 +52,17 @@ cpu::cpu() {
 	ecran = new screen();
     initialiserCpu();
 	initialiserJump();
-//	loadFont();
 	srand(time(NULL));
 	SDL_AddTimer(FPS,ttime,NULL);
-//	SDL_AddTimer(16,ttime,NULL);
 	debug = 1;
 }
 cpu::cpu(const cpu& orig) {
 	ecran = orig.ecran;
     initialiserCpu();
 	initialiserJump();
-//	loadFont();
 	srand(time(NULL));
+	SDL_AddTimer(FPS,ttime,NULL);
+	debug = 0;
 }
 cpu::~cpu() {
     
@@ -291,25 +290,24 @@ Uint8 cpu::doAction(Uint32 opcode) {
 		case 36: // 50 0X LL HH		SUBI RX, HHLL
 			if((V[b5]<((b2<<12)+(b1<<8)+(b4<<4)+b3))) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if(!(V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
-			if((V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
-			if(((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80)==1) setFlag(0x80, 1); else setFlag(0x80, 0);
+			if((!(V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||((V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] -= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
 			if(debug) printf("SUB V[%x] -= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 37: // 51 YX 00 00		SUB RX, RY
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
-			// TODO : Signed overflow Flag
-			if(((V[b5]-V[b6])&0x80)==1) setFlag(0x80,1); else setFlag(0x80,0);
+			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if((V[b5]-V[b6])&0x80) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] -= V[b6];
 			if(debug) printf("SUB V[%x] -= V[%x]",b5,b6);
 			break;
 		case 38: // 52 YX 0Z 00		SUB RX, RY, RZ
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
-			// TODO : Signed overflow Flag
-			if(((V[b5]-V[b6])&0x80)==1) setFlag(0x80,1); else setFlag(0x80,0);
+			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if((V[b5]-V[b6])&0x80==1) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] - V[b6];
 			if(debug) printf("SUB V[%x] = V[%x] - V[%x]",b3,b5,b6);
 			break;
