@@ -36,12 +36,12 @@ int main(int argc, char** argv) {
 	Uint8 demarer = 0, cpt = 0, continuer = 1;
 	
 	c = new cpu();
-	demarer = c->loadGame("ROMs/rom_test.c16");
+//	demarer = c->loadGame("ROMs/rom_test.c16");
 //	demarer = c->loadGame("ROMs/Demos/Ball.c16");
 //	demarer = c->loadGame("ROMs/Demos/Anim.c16");
 //	demarer = c->loadGame("ROMs/Demos/GB16.c16");
-//	demarer = c->loadGame("ROMs/Demos/ASCII.c16");
-//	demarer = c->loadGame("ROMs/Demos/Triangle.c16");
+	demarer = c->loadGame("ROMs/Demos/ASCII.c16");
+//	demarer = c->loadGame("ROMs/Demos/Triangle.c16"); // PUSH / POP
 //	demarer = c->loadGame("ROMs/Test roms/BC_TestRom.c16");
 //	demarer = c->loadGame("ROMs/Test roms/flip_test.c16");
 //	demarer = c->loadGame("ROMs/Games/Pong.c16");

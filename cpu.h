@@ -64,7 +64,7 @@ class cpu {
 		Uint8 F;
 		Uint8 fliph, flipv;
 //		Uint8 vblank;
-//        Uint8 nbsaut;
+//      Uint8 nbsaut;
         Uint8 cptJeu;
         Uint8 cptSon;
 		Uint8 touche[16];

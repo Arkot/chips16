@@ -172,7 +172,7 @@ Z   = 0x0 // [z==1]         Equal (Zero)
 NZ  = 0x1 // [z==0]         Not Equal (Non-Zero)
 N   = 0x2 // [n==1]         Negative
 NN  = 0x3 // [n==0]         Not-Negative (Positive or Zero)
-P   = 0x4 // [n==0 && z==0] Positive
+P   = 0x4 // [n==0 && z==0] Positive	
 O   = 0x5 // [o==1]         Overflow
 NO  = 0x6 // [o==0]         No Overflow
 A   = 0x7 // [c==0 && z==0] Above       (Unsigned Greater Than)

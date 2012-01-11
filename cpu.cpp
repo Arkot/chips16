@@ -26,14 +26,15 @@
  * 
  *	Flags add c OK - z OK - o OK - n OK
  *	Flags sub c OK - z OK - o OK - n OK
- *	Flags cmp c - z - o - n 
- *	Flags and z - n 
- *	Flags or  z - n 
- *	Flags xor z - n 
- *	Flags mul c - z - n 
- *	Flags div c - z - n 
- *	Flags shl z - n 
- *	Flags shr z - n 
+ *	Flags cmp c OK - z OK - o OK - n OK
+ *	Flags and z OK - n OK
+ *	Flags tst z OK - n OK
+ *	Flags or  z OK - n OK
+ *	Flags xor z OK - n OK
+ *	Flags mul c OK - z OK - n OK
+ *	Flags div c OK - z OK - n OK
+ *	Flags shl z OK - n OK
+ *	Flags shr z OK - n OK
  *
  */
 
@@ -117,7 +118,7 @@ Uint8 cpu::doAction(Uint32 opcode) {
 	b3=(opcode&0x00000F00)>>8;
 	b2=(opcode&0x000000F0)>>4;
 	b1=(opcode&0x0000000F);
-	if(debug) printf("%x op:%x - a:%d | %x:%x %x:%x %x:%x %x:%x | ",pc,opcode,a,b8,b7,b6,b5,b4,b3,b2,b1);
+	if(debug) printf("%x op:%x - a:%d | %x | %x:%x %x:%x %x:%x %x:%x | ",pc,opcode,a,F,b8,b7,b6,b5,b4,b3,b2,b1);
 	
 	switch(a) {
 		case 0: // 00 00 00 00		NOP
@@ -195,11 +196,11 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if(debug) printf("JMP %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 19: // 12 0x LL HH		Jx  HHLL
-			if(V[b5]) {
+			if(condition(b5)) {
 				pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 				pc -= 4;
 			}
-			if(debug) printf("JMP %x if V[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+			if(debug) printf("JMP %x if cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
 			break;
 		case 20: // 13 YX LL HH		JME RX, RY, HHLL
 			if(V[b5]==V[b6]) {
@@ -225,28 +226,38 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			pc = sp;
 //			pc -= 4;
 			if(debug) printf("RET");
-			
 			break;
 		case 24: // 17 0x LL HH     Cx   HHLL
-			
+			if(condition(b5)) {
+				sp = pc;
+				sp += 2;
+				pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
+				pc -= 4;
+			}
+			if(debug) printf("CALL %x IF cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
 			break;
 		case 25: // 18 0X 00 00		CALL RX
-			
+			sp = pc;
+			sp += 2;
+			pc = V[b5];
+			pc -= 4;
+			if(debug) printf("CALL V[%x]",b5);
 			break;
 		case 26: // 20 0X LL HH		LDI RX, HHLL
 			V[b5] = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 			if(debug) printf("SET V[%x] = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 27: // 21 00 LL HH		LDI SP, HHLL
-			
+			sp = (b2<<12)+(b1<<8)+(b4<<4)+b3;
+			if(debug) printf("SET sp = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 28: // 22 0X LL HH		LDM RX, HHLL
 			V[b5] = ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
 			if(debug) printf("SET V[%x] = ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 29: // 23 YX 00 00		LDM RX, RY	
-			V[b5] = V[b6];
-			if(debug) printf("SET V[%x] = V[%x]",b5,b6);
+			V[b5] = (ram[V[b6]]<<8)+ram[V[b6]+1];
+			if(debug) printf("SET V[%x] = ram[V[%x]]",b5,b6);
 			break;
 		case 30: // 24 YX 00 00		MOV RX, RY	
 			V[b5] = V[b6];
@@ -254,17 +265,17 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			break;
 		case 31: // 30 0X LL HH		STM RX, HHLL
 			ram[(b2<<12)+(b1<<8)+(b4<<4)+b3] = V[b5];
-			if(debug) printf("STR V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(debug) printf("STM V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 32: // 31 YX 00 00		STM RX, RY
-			ram[V[b6]] = V[b5];
-			if(debug) printf("STR V[%x] : V[%x]",b5,b6);
+			ram[V[b6]+1] = V[b5]&0xff;
+			ram[V[b6]] = ((V[b5]&0xff00)>>8);
+			if(debug) printf("STM ram[V[%x]] : V[%x]\n",b6,b5);
 			break;
 		case 33: // 40 0X LL HH		ADDI RX, HHLL
 			if((V[b5]+(b2<<12)+(b1<<8)+(b4<<4)+b3)>0xff) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if(((Uint16)(V[b5]+(b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if((V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
-			if(!(V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if(((V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||(!(V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+(b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] += (b2<<12)+(b1<<8)+(b4<<4)+b3;
 			if(debug) printf("ADD V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
@@ -272,8 +283,7 @@ Uint8 cpu::doAction(Uint32 opcode) {
 		case 34: // 41 YX 00 00		ADD RX, RY
 			if((V[b5]+V[b6])>0xff) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if(((Uint16)(V[b5]+V[b6])==0)) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
-			if(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if(((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000))||(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+V[b6])&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] += V[b6];
 			if(debug) printf("ADD V[%x] += V[%x]",b5,b6);
@@ -281,8 +291,7 @@ Uint8 cpu::doAction(Uint32 opcode) {
 		case 35: // 42 YX 0Z 00		ADD RX, RY, RZ
 			if((V[b5]+V[b6])>0xff) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if(((Uint16)(V[b5]+V[b6])==0)) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
-			if(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000)) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if(((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000))||(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+V[b6])&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b3] = V[b5] + V[b6];
 			if(debug) printf("ADD V[%x] = V[%x] + V[%x]",b3,b5,b6);
@@ -314,128 +323,183 @@ Uint8 cpu::doAction(Uint32 opcode) {
 		case 39: // 53 0X LL HH		CMPI RX, HHLL
 			if((V[b5]<((b2<<12)+(b1<<8)+(b4<<4)+b3))) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			// TODO : Signed overflow Flag
-			if(((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80)==1) setFlag(0x80, 1); else setFlag(0x80, 0);
-//			V[b5] -= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("SUB V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if((!(V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||((V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80) setFlag(0x80, 1); else setFlag(0x80, 0);
+			if(debug) printf("CMP V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 40: // 54 YX 00 00		CMP RX, RY
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
-			// TODO : Signed overflow Flag
-			if(((V[b5]-V[b6])&0x80)==1) setFlag(0x80,1); else setFlag(0x80,0);
-//			V[b5] - V[b6];
-			if(debug) printf("SUB V[%x] - V[%x]",b3,b5,b6);
+			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
+			if((V[b5]-V[b6])&0x80) setFlag(0x80,1); else setFlag(0x80,0);
+			if(debug) printf("CMP V[%x] - V[%x]",b3,b5,b6);
 			break;
 		case 41: // 60 0X LL HH		ANDI RX, HHLL
-			if((V[b5]&(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if(((V[b5]&(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))&0x80)==1) setFlag(0x80, 1); else setFlag(0x80, 0);
-			V[b5] &= ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
-			if(debug) printf("AND V[%x] &&= ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if((Uint16)(V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
+			if((Uint16)((V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
+			V[b5] &= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(debug) printf("AND V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 42: // 61 YX 00 00		AND RX, RY
-			if((V[b5]+V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
-			if(((V[b5]+V[b6])&0x80)==1) setFlag(0x80,1); else setFlag(0x80,0);
-			V[b5] += V[b6];
-			if(debug) printf("AND V[%x] += V[%x]",b5,b6);
+			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if((Uint16)((V[b5]&V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5] &= V[b6];
+			if(debug) printf("AND V[%x] &= V[%x]",b5,b6);
 			break;
 		case 43: // 62 YX 0Z 00		AND RX, RY, RZ
-			
+			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if((Uint16)((V[b5]&V[b6])&0x80)) setFlag(0x8000,1); else setFlag(0x80,0);
+			V[b3] = V[b5] & V[b6];
+			if(debug) printf("AND V[%x] = V[%x] & V[%x]",b3,b5,b6);
 			break;
 		case 44: // 63 0X LL HH		TSTI RX, HHLL
-			
+			if((Uint16)(V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
+			if((Uint16)((V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
+			if(debug) printf("TST V[%x] & %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 45: // 64 YX 00 00		TST RX, RY
-			
+			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if((Uint16)((V[b5]&V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
+			if(debug) printf("TST V[%x] & V[%x]",b5,b6);
 			break;
 		case 46: // 70 0X LL HH		ORI RX, HHLL
-			
+			if((Uint16)(V[b5]|((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
+			if((Uint16)((V[b5]|((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
+			V[b5] |= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(debug) printf("OR V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 47: // 71 YX 00 00		OR RX, RY
-			
+			if((Uint16)(V[b5]|V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]|V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5] |= V[b6];
+			if(debug) printf("OR V[%x] |= V[%x]",b5,b6);
 			break;
 		case 48: // 72 YX 0Z 00		OR RX, RY, RZ
-			
+			if((Uint16)(V[b5]|V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if((Uint16)((V[b5]|V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b3] = V[b5] | V[b6];
+			if(debug) printf("OR V[%x] = V[%x] | V[%x]",b3,b5,b6);
 			break;
 		case 49: // 80 0X LL HH		XORI RX, HHLL
-			if((V[b5]^(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if(((V[b5]^(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))&0x80)==1) setFlag(0x80, 1); else setFlag(0x80, 0);
-			V[b5] ^= ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
-			if(debug) printf("XOR V[%x] ^= ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if((V[b5]^((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
+			if(((V[b5]^((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
+			V[b5] ^= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(debug) printf("XOR V[%x] ^= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 50: // 81 YX 00 00		XOR RX, RY
-			
+			if((Uint16)(V[b5]^V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]^V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5] ^= V[b6];
+			if(debug) printf("XOR V[%x] ^= V[%x]",b5,b6);
 			break;
 		case 51: // 82 YX 0Z 00		XOR RX, RY, RZ
-			
+			if((Uint16)(V[b5]^V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]^V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b3] = V[b5] ^ V[b6];
+			if(debug) printf("XOR V[%x] = V[%x] ^ V[%x]",b3,b5,b6);
 			break;
 		case 52: // 90 0X LL HH		MULI RX, HHLL
-			if((V[b5]*(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))>0xff) setFlag(0x2, 1); else setFlag(0x2, 0);
-			if((V[b5]*(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
-			if(((V[b5]*(ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]))&0x80)==1) setFlag(0x80, 1); else setFlag(0x80, 0);
-			V[b5] *= ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
-			if(debug) printf("MUL V[%x] *= ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(((Uint32)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))>0xffff) setFlag(0x2, 1); else setFlag(0x2, 0);
+			if(((Uint16)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
+			if(((Uint16)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))&0x8000) setFlag(0x80, 1); else setFlag(0x80, 0);
+			V[b5] *= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
+			if(debug) printf("MUL V[%x] *= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 53: // 91 YX 00 00		MUL RX, RY
-			if((V[b5]*V[b6])>0xff) setFlag(0x2,1); else setFlag(0x2,0);
-			if((V[b5]*V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
-			if(((V[b5]*V[b6])&0x80)==1) setFlag(0x80,1); else setFlag(0x80,0);
+			if(((Uint32)(V[b5]*V[b6]))>0xffff) setFlag(0x2,1); else setFlag(0x2,0);
+			if(((Uint16)(V[b5]*V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]*V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] *= V[b6];
 			if(debug) printf("MUL V[%x] *= V[%x]",b5,b6);
 			break;
 		case 54: // 92 YX 0Z 00		MUL RX, RY, RZ
-			
+			if(((Uint32)(V[b5]*V[b6]))>0xffff) setFlag(0x2,1); else setFlag(0x2,0);
+			if(((Uint16)(V[b5]*V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]*V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b3] = V[b5] * V[b6];
+			if(debug) printf("MUL V[%x] = V[%x] * V[%x]",b3,b5,b6);
 			break;
 		case 55: // A0 0X LL HH		DIVI RX, HHLL
-			
+			if(V[b5]%((b2<<12)+(b1<<8)+(b4<<4)+b3)) setFlag(0x2,1); else setFlag(0x2,0);
+			if(((Uint16)(V[b5]/((b2<<12)+(b1<<8)+(b4<<4)+b3)))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]/((b2<<12)+(b1<<8)+(b4<<4)+b3)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5] /= (((b2<<12)+(b1<<8)+(b4<<4)+b3));
+			if(debug) printf("DIV V[%x] /= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
 			break;
 		case 56: // A1 YX 00 00		DIV RX, RY
-			
+			if(V[b5]%V[b6]) setFlag(0x2,1); else setFlag(0x2,0);
+			if(((Uint16)(V[b5]/V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]/V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5] /= V[b6];
+			if(debug) printf("DIV V[%x] /= V[%x]",b5,b6);
 			break;
 		case 57: // A2 YX 0Z 00		DIV RX, RY, RZ
-			
+			if(V[b5]%V[b6]) setFlag(0x2,1); else setFlag(0x2,0);
+			if(((Uint16)(V[b5]/V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]/V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b3] = V[b5] / V[b6];
+			if(debug) printf("DIV V[%x] = V[%x] / V[%x]",b3,b5,b6);
 			break;
 		case 58: // B0 0X 0N 00		SHL RX, N
-			
+			if((Uint16)(V[b5]<<b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]<<b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]<<=b3;
+			if(debug) printf("SHL V[%x] <<= %x",b5,b3);
 			break;
 		case 59: // B1 0X 0N 00		SHR RX, N
-			
+			if((Uint16)(V[b5]>>b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]>>b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]>>=b3;
+			if(debug) printf("SHR V[%x] >>= %x",b5,b3);
 			break;
 		case 60: // B2 0X 0N 00		SAR RX, N
-			
+			if((Uint16)(V[b5]>>b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]>>b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]>>=b3;
+			if(debug) printf("SHR V[%x] >>= %x",b5,b3);
 			break;
 		case 61: // B3 YX 00 00		SHL RX, RY
-			
+			printf("\n%x << %x = %x\n",V[b5],(V[b6]&0xf),V[b5]<<b3);
+			if((Uint16)(V[b5]<<(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]<<(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]<<=(V[b6]&0xf);
+			if(debug) printf("SHL V[%x] >>= V[%x]&0xf",b5,b6);
 			break;
 		case 62: // B4 YX 00 00		SHR RX, RY	
-			
+			if((Uint16)(V[b5]>>(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]>>(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]>>=(V[b6]&0xf);
+			if(debug) printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
 			break;
 		case 63: // B5 YX 00 00		SAR RX, RY	
-			
+			if((Uint16)(V[b5]>>(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
+			if(((Uint16)(V[b5]>>(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
+			V[b5]>>=(V[b6]&0xf);
+			if(debug) printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
 			break;
 		case 64: // C0 0X 00 00		PUSH RX
-			
+			printf("PUSH RX\n");
 			break;
 		case 65: // C1 0X 00 00		POP  RX
-			
+			printf("POP RX\n");
 			break;
 		case 66: // C2 00 00 00		PUSHALL
-			
+			printf("PUSHALL\n");
 			break;
 		case 67: // C3 00 00 00		POPALL
-			
+			printf("POPALL\n");
 			break;
 		case 68: // C4 00 00 00		PUSHF
-			
+			printf("PUSHF\n");
 			break;
 		case 69: // C5 00 00 00		POPF
-			
+			printf("POPF\n");
 			break;
 		case 70: // D0 00 LL HH     PAL HHLL
-			
+			printf("PAL HHLL\n");
 			break;
 		case 71: // D1 0x 00 00     PAL Rx
-			
+			printf("PAL Rx\n");
 			break;
 		default:
 			printf("\n\n*************************************************************************\n"
@@ -529,7 +593,12 @@ void cpu::drawSprite(int16 b5,int16 b6,Uint16 adr) {
 	Uint16 i,j;
 	int16 x,y;
 	Uint32 a=0;
-	printf("\n");
+	
+//	for(j=0;j<TAILLE_MEMOIRE;j++) {
+//		printf("%x : %x\n",j,ram[j]);
+//	}
+	
+	if(debug) printf("\n");
 	for(j=0;j<h;j++) {
 		y = (((int16)V[b6])+j);
 		for(i=0;i<w;i++) {
@@ -655,11 +724,32 @@ Uint8 cpu::endOfRom() {
 //	 return continuer;
 //}
 void cpu::setFlag(Uint8 flag, Uint8 v) {
-	printf("\n%x : %x\nf:%x\n",flag,v,F);
+//	printf("\n%x : %x\nf:%x\n",flag,v,F);
 	if((v&&!(F&flag)) || (!v&&(F&flag))) F^=flag;
-	printf("f:%x\n",F);
+//	printf("f:%x\n",F);
 }
 Uint8 cpu::condition(Uint8 cond) {
+	/* 
+	 * Test :
+	 *	 0 : OK
+	 *	 1 : OK
+	 *	 2 : OK
+	 *	 3 : OK
+	 *	 4 : OK
+	 *	 5 : OK
+	 *	 6 : OK
+	 *	 7 : OK
+	 *	 8 : OK
+	 *	 9 : OK
+	 *	10 : OK
+	 *	11 : OK
+	 *	12 : OK
+	 *	13 : OK
+	 *	14 : OK
+	 *	15 : OK
+	 * 
+	 **/
+	
 	switch(cond) {
 		case   0: if(F&0x4) return 1; else return 0; break;
 		case   1: if(F&0x4) return 0; else return 1; break;
@@ -669,13 +759,13 @@ Uint8 cpu::condition(Uint8 cond) {
 		case   5: if(F&0x40) return 1; else return 0; break;
 		case   6: if(F&0x40) return 0; else return 1; break;
 		case   7: if(!(F&0x2) && !(F&0x4)) return 1; else return 0; break;
-		case   8: if(F&0x2) return 1; else return 0;break;
-		case   9: if(F&0x2) return 0; else return 1;break;
+		case   8: if(F&0x2) return 0; else return 1;break;
+		case   9: if(F&0x2) return 1; else return 0;break;
 		case 0xa: if(F&0x2 || F&0x4) return 1; else return 0; break;
-//		case 0xb: if(!(F&0x40) && !(F&0x4)) return 1; else return 0; break;
-//		case 0xc: if(F&0x40) return 1; else return 0; break;
-		case 0xd: break;
-		case 0xe: break;
+		case 0xb: if(((F&0x40)>>6)==((F&0x80)>>7) && !(F&0x4)) return 1; else return 0; break;
+		case 0xc: if(((F&0x40)>>6)==((F&0x80)>>7)) return 1; else return 0; break;
+		case 0xd: if(((F&0x40)>>6)!=((F&0x80)>>7)) return 1; else return 0; break;
+		case 0xe: if(((F&0x40)>>6)!=((F&0x80)>>7) || (F&0x4)) return 1; else return 0; break;
 		case 0xf: break;
 	}
 }
