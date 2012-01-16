@@ -36,8 +36,8 @@ class screen {
 		void initialiserEcran();
 		void initialiserPixels();
 		void drawPixel(pixel *p);
-		void drawPixel(Uint8 x, Uint8 y, Uint8 col);
-		pixel* getPixel(Uint8 x, Uint8 y);
+		void drawPixel(Uint16 x, Uint16 y, Uint8 col);
+		pixel* getPixel(Uint16 x, Uint16 y);
 		void setBackgroundColor(Uint8 bgc);
 		void clearScreen();
 		void updateScreen();

@@ -37,10 +37,11 @@ int main(int argc, char** argv) {
 	
 	c = new cpu();
 //	demarer = c->loadGame("ROMs/rom_test.c16");
-//	demarer = c->loadGame("ROMs/Demos/Ball.c16");
+	demarer = c->loadGame("ROMs/Demos/Ball.c16");
 //	demarer = c->loadGame("ROMs/Demos/Anim.c16");
 //	demarer = c->loadGame("ROMs/Demos/GB16.c16");
-	demarer = c->loadGame("ROMs/Demos/ASCII.c16");
+//	demarer = c->loadGame("ROMs/Demos/ASCII.c16");
+//	demarer = c->loadGame("ROMs/Demos/Maze.c16");
 //	demarer = c->loadGame("ROMs/Demos/Triangle.c16"); // PUSH / POP
 //	demarer = c->loadGame("ROMs/Test roms/BC_TestRom.c16");
 //	demarer = c->loadGame("ROMs/Test roms/flip_test.c16");
@@ -52,7 +53,7 @@ int main(int argc, char** argv) {
 			
 			for(cpt=0;cpt<VITESSE_CPU&&continuer==1;cpt++) {
 				c->doAction(c->getOpcode());
-				if(c->endOfRom()) continuer = 0;
+//				if(c->endOfRom()) continuer = 0;
 			}
 			
 			

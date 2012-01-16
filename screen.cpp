@@ -125,26 +125,29 @@ void screen::drawPixel(pixel *p) {
 	SDL_BlitSurface(carre[p->getColor()], NULL, surf, p->getPosition());
 }
 
-void screen::drawPixel(Uint8 x, Uint8 y, Uint8 col) {
+void screen::drawPixel(Uint16 x, Uint16 y, Uint8 col) {
 	ecran[x][y]->setPosition(x*DIMPIXEL,y*DIMPIXEL);
 	ecran[x][y]->setColor(col);
 	SDL_BlitSurface(carre[ecran[x][y]->getColor()], NULL, surf, ecran[x][y]->getPosition());
 }
 
-pixel* screen::getPixel(Uint8 x, Uint8 y) {
+pixel* screen::getPixel(Uint16 x, Uint16 y) {
 	return ecran[x][y];
 }
 
 void screen::printScreen() {
-	Uint8 x,y;
-	printf("\n\n********************************************************************\n");
+	Uint16 x,y;
+	FILE* f = fopen("print.txt","w");
+//	printf("\n\n********************************************************************\n");
 	for(x=0;x<L;x++) {
 		for(y=0;y<l;y++) {
-			printf("%d",ecran[y][x]->getColor());
+			fprintf(f,"%x",ecran[y][x]->getColor());
+//			printf("%d:%d\t",x,y);
 		}
-		printf("\n");
+		fprintf(f,"\n");
 	}
-	printf("********************************************************************\n\n");
+//	printf("********************************************************************\n\n");
+	fclose(f);
 }
 
 void screen::setBackgroundColor(Uint8 bgc) {

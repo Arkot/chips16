@@ -27,6 +27,7 @@
 #include "types.h"
 #include "screen.h"
 #include <iostream>
+#include <cstdlib>
 
 typedef struct {
 	Uint32 masque[NBOPCODE];
@@ -75,6 +76,10 @@ class cpu {
 		Uint8 debug;
 		
 		SDL_Event event;
+		
+		Uint8 tolog;
+		Uint32 nb_op;
+		FILE *log,*dump;
 };
 
 #endif	/* CPU_H */

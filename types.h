@@ -40,7 +40,7 @@ typedef short int16;
 #define NBOPCODE 72
 //#define VITESSE_CPU 16666
 #define FPS 16
-#define VITESSE_CPU 100
+#define VITESSE_CPU 166
 //#define FPS 160
 
 using namespace std;
