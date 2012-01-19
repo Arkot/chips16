@@ -25,6 +25,7 @@
 #include <iostream>
 #include <SDL/SDL.h>
 #include "types.h"
+#include "timer.h"
 #include "cpu.h"
 #include "screen.h"
 
@@ -33,27 +34,41 @@ using namespace std;
 cpu *c;
 
 int main(int argc, char** argv) {
-	Uint8 demarer = 0, cpt = 0, continuer = 1;
+	Timer timer;
+	
+	Uint8 demarer = 0, continuer = 1;
+	Uint16 cpt = 0;
 	
 	c = new cpu();
 //	demarer = c->loadGame("ROMs/rom_test.c16");
-	demarer = c->loadGame("ROMs/Demos/Ball.c16");
 //	demarer = c->loadGame("ROMs/Demos/Anim.c16");
-//	demarer = c->loadGame("ROMs/Demos/GB16.c16");
 //	demarer = c->loadGame("ROMs/Demos/ASCII.c16");
+//	demarer = c->loadGame("ROMs/Demos/Ball.c16");
+//	demarer = c->loadGame("ROMs/Demos/GB16.c16");
+//	demarer = c->loadGame("ROMs/Demos/Intro.c16");
+//	demarer = c->loadGame("ROMs/Demos/Mandel.c16");
 //	demarer = c->loadGame("ROMs/Demos/Maze.c16");
-//	demarer = c->loadGame("ROMs/Demos/Triangle.c16"); // PUSH / POP
+//	demarer = c->loadGame("ROMs/Demos/Starfield.c16");
+	demarer = c->loadGame("ROMs/Demos/Triangle.c16"); // PUSH / POP
+	
 //	demarer = c->loadGame("ROMs/Test roms/BC_TestRom.c16");
+//	demarer = c->loadGame("ROMs/Test roms/CollisionTest.c16");
 //	demarer = c->loadGame("ROMs/Test roms/flip_test.c16");
+	
 //	demarer = c->loadGame("ROMs/Games/Pong.c16");
+	
 	
 	if(demarer==1) {
 		while(continuer == 1) {
 //			c->listen();
 			
+//			timer.start();
 			for(cpt=0;cpt<VITESSE_CPU&&continuer==1;cpt++) {
+//				timer.start();
 				c->doAction(c->getOpcode());
-//				if(c->endOfRom()) continuer = 0;
+				if(c->endOfRom()) continuer = 0;
+//				timer.stop();
+//				cout << timer.getElapsedTimeInMilliSec() << " ms.\n";
 			}
 			
 			
@@ -63,7 +78,9 @@ int main(int argc, char** argv) {
 			
 //			c->ecran->printScreen();
 			
-			SDL_Delay(FPS);
+//			SDL_Delay(FPS);
+//			timer.stop();
+//			cout << timer.getElapsedTimeInMilliSec() << " ms.\n";
 		}
 	}
     return 0;

@@ -37,7 +37,8 @@ OBJECTFILES= \
 	${OBJECTDIR}/cpu.o \
 	${OBJECTDIR}/main.o \
 	${OBJECTDIR}/screen.o \
-	${OBJECTDIR}/pixel.o
+	${OBJECTDIR}/pixel.o \
+	${OBJECTDIR}/timer.o
 
 
 # C Compiler Flags
@@ -83,6 +84,11 @@ ${OBJECTDIR}/pixel.o: pixel.cpp
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
 	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/pixel.o pixel.cpp
+
+${OBJECTDIR}/timer.o: timer.cpp 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} $@.d
+	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/timer.o timer.cpp
 
 # Subprojects
 .build-subprojects:

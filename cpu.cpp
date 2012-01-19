@@ -38,8 +38,8 @@
  *
  */
 
-
-
+#define DEBUG
+#define TOLOG
 
 #include "cpu.h"
 
@@ -55,13 +55,11 @@ cpu::cpu() {
 	initialiserJump();
 	srand(time(NULL));
 	SDL_AddTimer(FPS,ttime,NULL);
-	debug = 1;
-	
-	tolog = 0;
-	if(tolog) {
-		log = fopen("logs.txt","w");
-		dump = fopen("dump.txt","w");
-	}
+
+#ifdef TOLOG
+	log = fopen("logs.txt","w");
+	dump = fopen("dump.txt","w");
+#endif
 }
 cpu::cpu(const cpu& orig) {
 	ecran = orig.ecran;
@@ -69,13 +67,12 @@ cpu::cpu(const cpu& orig) {
 	initialiserJump();
 	srand(time(NULL));
 	SDL_AddTimer(FPS,ttime,NULL);
-	debug = 0;
 }
 cpu::~cpu() {
-	if(tolog) {
-		fclose(log);
-		fclose(dump);
-	}
+#ifdef TOLOG
+	fclose(log);
+	fclose(dump);
+#endif
 }
 void cpu::initialiserCpu() {
     for(int i=0;i<TAILLE_MEMOIRE;i++) {
@@ -83,23 +80,14 @@ void cpu::initialiserCpu() {
     }
     for(int i=0;i<16;i++) {
         V[i] = 0;
-//        saut[i] = 0;
 		touche[i] = 0;
     }
 	vblank = 0;
 	F = 0;
     pc = ADRESSE_DEBUT;
-    sp = 0;
-	w = h = bg = 0;
-//    nbsaut = 0;
-    cptJeu = 0;
-    cptSon = 0;
-	fliph = flipv = 0;
+    sp = w = h = bg = fliph = flipv = 0;
+	stack = 0xFDF0;
     
-}
-void cpu::decompter() {
-    if(cptJeu>0) cptJeu--;
-    if(cptSon>0) cptSon--;
 }
 Uint32 cpu::getOpcode() {
 	return (ram[pc]<<24)+(ram[pc+1]<<16)+(ram[pc+2]<<8)+ram[pc+3];
@@ -116,9 +104,16 @@ Uint8 cpu::getAction(Uint32 opcode) {
 Uint8 cpu::doAction(Uint32 opcode) {
 	Uint8 continuer;
 	Uint8 a=0,b8=0,b7=0,b6=0,b5=0,b4=0,b3=0,b2=0,b1=0,i;
-//	int16 si1=0,si2=0,si3=0;
-	
+		//int16 si1=0,si2=0,si3=0;
+//	
+////	timer.start();
+//	
 	a = getAction(opcode);
+//	
+////	timer.stop();
+////	cout << "getAction    : " << timer.getElapsedTimeInMilliSec() << " ms.\n";
+////	timer.start();
+//	
 	b8=(opcode&0xF0000000)>>28;
 	b7=(opcode&0x0F000000)>>24;
 	b6=(opcode&0x00F00000)>>20;
@@ -127,98 +122,169 @@ Uint8 cpu::doAction(Uint32 opcode) {
 	b3=(opcode&0x00000F00)>>8;
 	b2=(opcode&0x000000F0)>>4;
 	b1=(opcode&0x0000000F);
-	if(debug) printf("%6d | %x op:%x - a:%d | %x | %x:%x %x:%x %x:%x %x:%x | ",nb_op,pc,opcode,a,F,b8,b7,b6,b5,b4,b3,b2,b1);
-	
-	if(tolog) fprintf(log,"%6d | %4x a:%2d | spr %2dx%2d | %x%x %x%x %x%x %x%x | c:%x z:%x o:%x n:%x | 0:%4x 1:%4x 2:%4x 3:%4x 4:%4x 5:%4x 6:%4x 7:%4x 8:%4x 9:%4x A:%4x B:%4x C:%4x D:%4x E:%4x F:%4x | ",nb_op,pc,a,w,h,b8,b7,b6,b5,b4,b3,b2,b1,(F&0x2)>>1,(F&0x4)>>2,(F&0x40)>>6,(F&0x80)>>7,V[0],V[1],V[2],V[3],V[4],V[5],V[6],V[7],V[8],V[9],V[10],V[11],V[12],V[13],V[14],V[15]);
 
-	if(tolog) fprintf(dump,"\n\n---- %d - %x\n\n",nb_op,pc);
-	for(Uint16 j=0;j<0x2000;j++) {
-		if(tolog) fprintf(dump,"%x : %x\n",j,ram[j]);
+#ifdef DEBUG
+	printf("%6d | %x op:%x - a:%d | %x | %x:%x %x:%x %x:%x %x:%x | ",nb_op,pc,opcode,a,F,b8,b7,b6,b5,b4,b3,b2,b1);
+#endif
+	
+#ifdef TOLOG
+	fprintf(log,"%6d | %4x a:%2d | spr %2dx%2d | %x%x %x%x %x%x %x%x | c:%x z:%x o:%x n:%x | 0:%4x 1:%4x 2:%4x 3:%4x 4:%4x 5:%4x 6:%4x 7:%4x 8:%4x 9:%4x A:%4x B:%4x C:%4x D:%4x E:%4x F:%4x | ",nb_op,pc,a,w,h,b8,b7,b6,b5,b4,b3,b2,b1,(F&0x2)>>1,(F&0x4)>>2,(F&0x40)>>6,(F&0x80)>>7,V[0],V[1],V[2],V[3],V[4],V[5],V[6],V[7],V[8],V[9],V[10],V[11],V[12],V[13],V[14],V[15]);
+
+	fprintf(dump,"\n\n---- %d - %x\n\n",nb_op,pc);
+//	for(Uint16 j=0;j<0x2000;j++) {
+	for(Uint32 j=0;j<TAILLE_MEMOIRE;j++) {
+		fprintf(dump,"%x : %x\n",j,ram[j]);
 	}
+#endif
+	
+//	timer.stop();
+//	cout << "avant switch : " << timer.getElapsedTimeInMilliSec() << " ms.\n";
+//	timer.start();
+	
 	
 	Uint8 rnd;
 	switch(a) {
 		case 0: // 00 00 00 00		NOP
-			if(debug) printf("NOP");
-			if(tolog) fprintf(log,"NOP");
+#ifdef DEBUG
+			printf("NOP");
+#endif
+#ifdef TOLOG
+			fprintf(log,"NOP");
+#endif
 			break;
 		case 1: // 01 00 00 00		CLS
 			ecran->clearScreen();
-			if(debug) printf("Clear screen");
-			if(tolog) fprintf(log,"Clear screen");
+#ifdef DEBUG
+			printf("Clear screen");
+#endif
+#ifdef TOLOG
+			fprintf(log,"Clear screen");
+#endif
 			break;
 		case 2: // 02 00 00 00		VBLNK
 			if(!vblank) pc -= 4;
-			if(debug) printf("WAIT VBLANK");
-			if(tolog) fprintf(log,"WAIT VBLANK");
+#ifdef DEBUG
+			printf("WAIT VBLANK");
+#endif
+#ifdef TOLOG
+			fprintf(log,"WAIT VBLANK");
+#endif
 			break;
 		case 3: // 03 00 0N 00		BGC N
 			bg = b3;
 			ecran->setBackgroundColor(bg);
-			if(debug) printf("SET BG TO %x",b3);
-			if(tolog) fprintf(log,"SET BG TO %x",b3);
+#ifdef DEBUG
+			printf("SET BG TO %x",b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SET BG TO %x",b3);
+#endif
 			break;
 		case 4: // 04 00 LL HH		SPR HHLL
 			w = (b4<<4)+b3;
 			h = (b2<<4)+b1;
-			if(debug) printf("SPR W:%d H:%d",(b4<<4)+b3,(b2<<4)+b1);
-			if(tolog) fprintf(log,"SPR W:%d H:%d",(b4<<4)+b3,(b2<<4)+b1);
+#ifdef DEBUG
+			printf("SPR W:%d H:%d",(b4<<4)+b3,(b2<<4)+b1);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SPR W:%d H:%d",(b4<<4)+b3,(b2<<4)+b1);
+#endif
 			break;
 		case 5: // 05 YX LL HH		DRW RX, RY, HHLL
 			drawSprite(b5,b6,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("DRW (V[%x],V[%x]) coord (%d,%d) IMG adr %x",b5,b6,w,h,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"DRW (V[%x],V[%x]) coord (%d,%d) IMG adr %x",b5,b6,w,h,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("DRW (V[%x],V[%x]) coord (%d,%d) IMG adr %x",b5,b6,w,h,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"DRW (V[%x],V[%x]) coord (%d,%d) IMG adr %x",b5,b6,w,h,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 6: // 06 YX 0Z 00		DRW RX, RY, RZ
 			drawSprite(b5,b6,V[b3]);
 //			printf("DRW (%x,%x) IMG V[%x]\n",V[b5],V[b6],V[b3]);
-			if(debug) printf("DRW (V[%x],V[%x]) coord (%d,%d) IMG V[%x]",b5,b6,w,h,b3);
-			if(tolog) fprintf(log,"DRW (V[%x],V[%x]) coord (%d,%d) IMG V[%x]",b5,b6,w,h,b3);
+#ifdef DEBUG
+			printf("DRW (V[%x],V[%x]) coord (%d,%d) IMG V[%x]",b5,b6,w,h,b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"DRW (V[%x],V[%x]) coord (%d,%d) IMG V[%x]",b5,b6,w,h,b3);
+#endif
 			break;
 		case 7: // 07 0X LL HH		RND RX, HHLL
 //			rnd = rand();
 			V[b5] = rand()%(((b2<<12)+(b1<<8)+(b4<<4)+b3)+1);
 //			V[b5] = rnd%(((b2<<12)+(b1<<8)+(b4<<4)+b3)+1);
 //			printf("RND V[%x], MAX %x, %x | %d -- %d\n",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3,V[b5],rnd,rnd%(((b2<<12)+(b1<<8)+(b4<<4)+b3)+1));
-			if(debug) printf("RND V[%x], MAX %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"RND V[%x], MAX %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("RND V[%x], MAX %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"RND V[%x], MAX %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 8: // 08 00 00 00		FLIP 0, 0
 			fliph = flipv = 0;
-			if(debug) printf("FLIP (0,0)");
-			if(tolog) fprintf(log,"FLIP (0,0)");
+#ifdef DEBUG
+			printf("FLIP (0,0)");
+#endif
+#ifdef TOLOG
+			fprintf(log,"FLIP (0,0)");
+#endif
 			break;
 		case 9: // 08 00 00 01		FLIP 0, 1
 			fliph = 0;
 			flipv = 1;
-			if(debug) printf("FLIP (0,1)");
-			if(tolog) fprintf(log,"FLIP (0,1)");
+#ifdef DEBUG
+			printf("FLIP (0,1)");
+#endif
+#ifdef TOLOG
+			fprintf(log,"FLIP (0,1)");
+#endif
 			break;
 		case 10: // 08 00 00 02		FLIP 1, 0
 			fliph = 1;
 			flipv = 0;
-			if(debug) printf("FLIP (1,0)");
-			if(tolog) fprintf(log,"FLIP (1,0)");
+#ifdef DEBUG
+			printf("FLIP (1,0)");
+#endif
+#ifdef TOLOG
+			fprintf(log,"FLIP (1,0)");
+#endif
 			break;
 		case 11: // 08 00 00 03		FLIP 1, 1
 			fliph = flipv = 1;
-			if(debug) printf("FLIP (1,1)");
-			if(tolog) fprintf(log,"FLIP (1,1)");
+#ifdef DEBUG
+			printf("FLIP (1,1)");
+#endif
+#ifdef TOLOG
+			fprintf(log,"FLIP (1,1)");
+#endif
 			break;
 		case 12: // 09 00 00 00		SND0
 			
 			break;
 		case 13: // 0A 00 LL HH		SND1 HHLL
-			if(debug) printf("SND1 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SND1 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("SND1 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SND1 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 14: // 0B 00 LL HH		SND2 HHLL
-			if(debug) printf("SND2 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SND2 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("SND2 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SND2 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 15: // 0C 00 LL HH		SND3 HHLL
-			if(debug) printf("SND3 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SND3 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("SND3 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SND3 for %d ms ** TODO",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 16: // 0D 0X LL HH     SNP Rx, HHLL
 			
@@ -229,100 +295,160 @@ Uint8 cpu::doAction(Uint32 opcode) {
 		case 18: // 10 00 LL HH		JMP HHLL
 			pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 			pc -= 4;
-			if(debug) printf("JMP %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"JMP %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("JMP %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"JMP %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 19: // 12 0x LL HH		Jx  HHLL
 			if(condition(b5)) {
 				pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 				pc -= 4;
 			}
-			if(debug) printf("JMP %x if cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
-			if(tolog) fprintf(log,"JMP %x if cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#ifdef DEBUG
+			printf("JMP %x if cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"JMP %x if cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#endif
 			break;
 		case 20: // 13 YX LL HH		JME RX, RY, HHLL
 			if(V[b5]==V[b6]) {
 				pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 				pc -= 4;
 			}
-			if(debug) printf("JMP %x if V[%x] = V[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5,b6);
-			if(tolog) fprintf(log,"JMP %x if V[%x] = V[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5,b6);
+#ifdef DEBUG
+			printf("JMP %x if V[%x] = V[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"JMP %x if V[%x] = V[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5,b6);
+#endif
 			break;
 		case 21: // 16 0X 00 00		JMP RX
 			pc = V[b5];
 			pc -= 4;
-			if(debug) printf("JMP V[%x]",b5);
-			if(tolog) fprintf(log,"JMP V[%x]",b5);
+#ifdef DEBUG
+			printf("JMP V[%x]",b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"JMP V[%x]",b5);
+#endif
 			break;
 		case 22: // 14 00 LL HH		CALL HHLL
-			sp = pc;
+			ram[stack+sp] = pc;
 			sp += 2;
 			pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 			pc -= 4;
-			if(debug) printf("CALL %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"CALL %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			printf("CALL %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"CALL %x",(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 23: // 15 00 00 00		RET
 			sp -= 2;
-			pc = sp;
+			pc = ram[stack+sp];
 //			pc -= 4;
-			if(debug) printf("RET");
-			if(tolog) fprintf(log,"RET");
+#ifdef DEBUG
+			printf("RET");
+#endif
+#ifdef TOLOG
+			fprintf(log,"RET");
+#endif
 			break;
 		case 24: // 17 0x LL HH     Cx   HHLL
 			if(condition(b5)) {
-				sp = pc;
+				ram[stack+sp] = pc;
 				sp += 2;
 				pc = (b2<<12)+(b1<<8)+(b4<<4)+b3;
 				pc -= 4;
 			}
-			if(debug) printf("CALL %x IF cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
-			if(tolog) fprintf(log,"CALL %x IF cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#ifdef DEBUG
+			printf("CALL %x IF cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"CALL %x IF cond[%x]",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#endif
 			break;
 		case 25: // 18 0X 00 00		CALL RX
-			sp = pc;
+			ram[stack+sp] = pc;
 			sp += 2;
 			pc = V[b5];
 			pc -= 4;
-			if(debug) printf("CALL V[%x]",b5);
-			if(tolog) fprintf(log,"CALL V[%x]",b5);
+#ifdef DEBUG
+			printf("CALL V[%x]",b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"CALL V[%x]",b5);
+#endif
 			break;
 		case 26: // 20 0X LL HH		LDI RX, HHLL
 			V[b5] = (b2<<12)+(b1<<8)+(b4<<4)+b3;
-			if(debug) printf("SET V[%x] = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SET V[%x] = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("SET V[%x] = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SET V[%x] = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 27: // 21 00 LL HH		LDI SP, HHLL
 			sp = (b2<<12)+(b1<<8)+(b4<<4)+b3;
-			if(debug) printf("SET sp = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SET sp = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("SET sp = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SET sp = %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 28: // 22 0X LL HH		LDM RX, HHLL
-			V[b5] = ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
-			if(debug) printf("SET V[%x] = ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SET V[%x] = ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+			V[b5] = (ram[(b2<<12)+(b1<<8)+(b4<<4)+b3]<<8)+ram[(b2<<12)+(b1<<8)+(b4<<4)+b3];
+#ifdef DEBUG
+			 printf("SET V[%x] = ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SET V[%x] = ram[%x]",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 29: // 23 YX 00 00		LDM RX, RY	
 			V[b5] = (ram[V[b6]]<<8)+ram[V[b6]+1];
-			if(debug) printf("SET V[%x] = ram[V[%x]]",b5,b6);
-			if(tolog) fprintf(log,"SET V[%x] = ram[V[%x]]",b5,b6);
+#ifdef DEBUG
+			 printf("SET V[%x] = ram[V[%x]]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SET V[%x] = ram[V[%x]]",b5,b6);
+#endif
 			break;
 		case 30: // 24 YX 00 00		MOV RX, RY	
 			V[b5] = V[b6];
-			if(debug) printf("MOV V[%x] = V[%x]",b5,b6);
-			if(tolog) fprintf(log,"MOV V[%x] = V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("MOV V[%x] = V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"MOV V[%x] = V[%x]",b5,b6);
+#endif
 			break;
 		case 31: // 30 0X LL HH		STM RX, HHLL
 			ram[((b2<<12)+(b1<<8)+(b4<<4)+b3)+1] = V[b5]&0xff;
 			ram[(b2<<12)+(b1<<8)+(b4<<4)+b3] = ((V[b5]&0xff00)>>8);
-			if(debug) printf("STM V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"STM V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("STM ram[%x] = V[%x] : ",(b2<<12)+(b1<<8)+(b4<<4)+b3,b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"STM V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 32: // 31 YX 00 00		STM RX, RY
 			ram[V[b6]+1] = V[b5]&0xff;
 			ram[V[b6]] = ((V[b5]&0xff00)>>8);
-			if(debug) printf("STM ram[V[%x]] : V[%x]",b6,b5);
-			if(tolog) fprintf(log,"STM ram[V[%x]] : V[%x]",b6,b5);
+#ifdef DEBUG
+			 printf("STM ram[V[%x]] : V[%x]",b6,b5);
+#endif
+#ifdef TOLOG
+			fprintf(log,"STM ram[V[%x]] : V[%x]",b6,b5);
+#endif
 			break;
 		case 33: // 40 0X LL HH		ADDI RX, HHLL
 			if((V[b5]+(b2<<12)+(b1<<8)+(b4<<4)+b3)>0xffff) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -330,8 +456,12 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if(((V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||(!(V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+(b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] += (b2<<12)+(b1<<8)+(b4<<4)+b3;
-			if(debug) printf("ADD V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"ADD V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("ADD V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"ADD V[%x] : %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 34: // 41 YX 00 00		ADD RX, RY
 			if((V[b5]+V[b6])>0xffff) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -339,8 +469,12 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if(((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000))||(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+V[b6])&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] += V[b6];
-			if(debug) printf("ADD V[%x] += V[%x]",b5,b6);
-			if(tolog) fprintf(log,"ADD V[%x] += V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("ADD V[%x] += V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"ADD V[%x] += V[%x]",b5,b6);
+#endif
 			break;
 		case 35: // 42 YX 0Z 00		ADD RX, RY, RZ
 			if((V[b5]+V[b6])>0xffff) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -348,8 +482,12 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if(((V[b5]&0x8000)&&(V[b6]&0x8000)&&!((V[b5]+V[b6])&0x8000))||(!(V[b5]&0x8000)&&!(V[b6]&0x8000)&&((V[b5]+V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if(((V[b5]+V[b6])&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b3] = V[b5] + V[b6];
-			if(debug) printf("ADD V[%x] = V[%x] + V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"ADD V[%x] = V[%x] + V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("ADD V[%x] = V[%x] + V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"ADD V[%x] = V[%x] + V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 36: // 50 0X LL HH		SUBI RX, HHLL
 			if((V[b5]<((b2<<12)+(b1<<8)+(b4<<4)+b3))) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -357,8 +495,12 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if((!(V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||((V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] -= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("SUB V[%x] -= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"SUB V[%x] -= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("SUB V[%x] -= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SUB V[%x] -= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 37: // 51 YX 00 00		SUB RX, RY
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -366,8 +508,12 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if((V[b5]-V[b6])&0x80) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] -= V[b6];
-			if(debug) printf("SUB V[%x] -= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"SUB V[%x] -= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("SUB V[%x] -= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SUB V[%x] -= V[%x]",b5,b6);
+#endif
 			break;
 		case 38: // 52 YX 0Z 00		SUB RX, RY, RZ
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
@@ -375,236 +521,398 @@ Uint8 cpu::doAction(Uint32 opcode) {
 			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if((V[b5]-V[b6])&0x80==1) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] - V[b6];
-			if(debug) printf("SUB V[%x] = V[%x] - V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"SUB V[%x] = V[%x] - V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("SUB V[%x] = V[%x] - V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SUB V[%x] = V[%x] - V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 39: // 53 0X LL HH		CMPI RX, HHLL
 			if((V[b5]<((b2<<12)+(b1<<8)+(b4<<4)+b3))) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if((!(V[b5]&0x8000)&&(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))||((V[b5]&0x8000)&&!(((b2<<12)+(b1<<8)+(b4<<4)+b3)&0x8000)&&!((V[b5]+((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if((V[b5]-((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x80) setFlag(0x80, 1); else setFlag(0x80, 0);
-			if(debug) printf("CMP V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"CMP V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("CMP V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"CMP V[%x] - %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 40: // 54 YX 00 00		CMP RX, RY
 			if((V[b5]<V[b6])) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if((V[b5]-V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if((!(V[b5]&0x8000)&&(V[b6]&0x8000)&&((V[b5]-V[b6])&0x8000))||((V[b5]&0x8000)&&!(V[b6]&0x8000)&&!((V[b5]-V[b6])&0x8000))) setFlag(0x40, 1); else setFlag(0x40, 0);
 			if((V[b5]-V[b6])&0x80) setFlag(0x80,1); else setFlag(0x80,0);
-			if(debug) printf("CMP V[%x] - V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"CMP V[%x] - V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("CMP V[%x] - V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"CMP V[%x] - V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 41: // 60 0X LL HH		ANDI RX, HHLL
 			if((Uint16)(V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if((Uint16)((V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] &= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("AND V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"AND V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("AND V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"AND V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 42: // 61 YX 00 00		AND RX, RY
 			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if((Uint16)((V[b5]&V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] &= V[b6];
-			if(debug) printf("AND V[%x] &= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"AND V[%x] &= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("AND V[%x] &= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"AND V[%x] &= V[%x]",b5,b6);
+#endif
 			break;
 		case 43: // 62 YX 0Z 00		AND RX, RY, RZ
 			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if((Uint16)((V[b5]&V[b6])&0x80)) setFlag(0x8000,1); else setFlag(0x80,0);
 			V[b3] = V[b5] & V[b6];
-			if(debug) printf("AND V[%x] = V[%x] & V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"AND V[%x] = V[%x] & V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("AND V[%x] = V[%x] & V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"AND V[%x] = V[%x] & V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 44: // 63 0X LL HH		TSTI RX, HHLL
 			if((Uint16)(V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if((Uint16)((V[b5]&((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
-			if(debug) printf("TST V[%x] & %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"TST V[%x] & %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("TST V[%x] & %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"TST V[%x] & %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 45: // 64 YX 00 00		TST RX, RY
 			if((Uint16)(V[b5]&V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if((Uint16)((V[b5]&V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
-			if(debug) printf("TST V[%x] & V[%x]",b5,b6);
-			if(tolog) fprintf(log,"TST V[%x] & V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("TST V[%x] & V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"TST V[%x] & V[%x]",b5,b6);
+#endif
 			break;
 		case 46: // 70 0X LL HH		ORI RX, HHLL
 			if((Uint16)(V[b5]|((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if((Uint16)((V[b5]|((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] |= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("OR V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"OR V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("OR V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"OR V[%x] &= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 47: // 71 YX 00 00		OR RX, RY
 			if((Uint16)(V[b5]|V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]|V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] |= V[b6];
-			if(debug) printf("OR V[%x] |= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"OR V[%x] |= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("OR V[%x] |= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"OR V[%x] |= V[%x]",b5,b6);
+#endif
 			break;
 		case 48: // 72 YX 0Z 00		OR RX, RY, RZ
 			if((Uint16)(V[b5]|V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if((Uint16)((V[b5]|V[b6])&0x8000)) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] | V[b6];
-			if(debug) printf("OR V[%x] = V[%x] | V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"OR V[%x] = V[%x] | V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("OR V[%x] = V[%x] | V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"OR V[%x] = V[%x] | V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 49: // 80 0X LL HH		XORI RX, HHLL
 			if((V[b5]^((b2<<12)+(b1<<8)+(b4<<4)+b3))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if(((V[b5]^((b2<<12)+(b1<<8)+(b4<<4)+b3))&0x8000)) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] ^= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("XOR V[%x] ^= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"XOR V[%x] ^= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("XOR V[%x] ^= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"XOR V[%x] ^= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 50: // 81 YX 00 00		XOR RX, RY
 			if((Uint16)(V[b5]^V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]^V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] ^= V[b6];
-			if(debug) printf("XOR V[%x] ^= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"XOR V[%x] ^= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("XOR V[%x] ^= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"XOR V[%x] ^= V[%x]",b5,b6);
+#endif
 			break;
 		case 51: // 82 YX 0Z 00		XOR RX, RY, RZ
 			if((Uint16)(V[b5]^V[b6])==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]^V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] ^ V[b6];
-			if(debug) printf("XOR V[%x] = V[%x] ^ V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"XOR V[%x] = V[%x] ^ V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("XOR V[%x] = V[%x] ^ V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"XOR V[%x] = V[%x] ^ V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 52: // 90 0X LL HH		MULI RX, HHLL
 			if(((Uint32)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))>0xffff) setFlag(0x2, 1); else setFlag(0x2, 0);
 			if(((Uint16)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))==0) setFlag(0x4, 1); else setFlag(0x4, 0);
 			if(((Uint16)(V[b5]*((b2<<12)+(b1<<8)+(b4<<4)+b3)))&0x8000) setFlag(0x80, 1); else setFlag(0x80, 0);
 			V[b5] *= ((b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(debug) printf("MUL V[%x] *= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"MUL V[%x] *= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("MUL V[%x] *= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"MUL V[%x] *= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 53: // 91 YX 00 00		MUL RX, RY
 			if(((Uint32)(V[b5]*V[b6]))>0xffff) setFlag(0x2,1); else setFlag(0x2,0);
 			if(((Uint16)(V[b5]*V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]*V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] *= V[b6];
-			if(debug) printf("MUL V[%x] *= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"MUL V[%x] *= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("MUL V[%x] *= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"MUL V[%x] *= V[%x]",b5,b6);
+#endif
 			break;
 		case 54: // 92 YX 0Z 00		MUL RX, RY, RZ
 			if(((Uint32)(V[b5]*V[b6]))>0xffff) setFlag(0x2,1); else setFlag(0x2,0);
 			if(((Uint16)(V[b5]*V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]*V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] * V[b6];
-			if(debug) printf("MUL V[%x] = V[%x] * V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"MUL V[%x] = V[%x] * V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("MUL V[%x] = V[%x] * V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"MUL V[%x] = V[%x] * V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 55: // A0 0X LL HH		DIVI RX, HHLL
 			if(V[b5]%((b2<<12)+(b1<<8)+(b4<<4)+b3)) setFlag(0x2,1); else setFlag(0x2,0);
 			if(((Uint16)(V[b5]/((b2<<12)+(b1<<8)+(b4<<4)+b3)))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]/((b2<<12)+(b1<<8)+(b4<<4)+b3)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] /= (((b2<<12)+(b1<<8)+(b4<<4)+b3));
-			if(debug) printf("DIV V[%x] /= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
-			if(tolog) fprintf(log,"DIV V[%x] /= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#ifdef DEBUG
+			 printf("DIV V[%x] /= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"DIV V[%x] /= %x",b5,(b2<<12)+(b1<<8)+(b4<<4)+b3);
+#endif
 			break;
 		case 56: // A1 YX 00 00		DIV RX, RY
 			if(V[b5]%V[b6]) setFlag(0x2,1); else setFlag(0x2,0);
 			if(((Uint16)(V[b5]/V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]/V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5] /= V[b6];
-			if(debug) printf("DIV V[%x] /= V[%x]",b5,b6);
-			if(tolog) fprintf(log,"DIV V[%x] /= V[%x]",b5,b6);
+#ifdef DEBUG
+			 printf("DIV V[%x] /= V[%x]",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"DIV V[%x] /= V[%x]",b5,b6);
+#endif
 			break;
 		case 57: // A2 YX 0Z 00		DIV RX, RY, RZ
 			if(V[b5]%V[b6]) setFlag(0x2,1); else setFlag(0x2,0);
 			if(((Uint16)(V[b5]/V[b6]))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]/V[b6]))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b3] = V[b5] / V[b6];
-			if(debug) printf("DIV V[%x] = V[%x] / V[%x]",b3,b5,b6);
-			if(tolog) fprintf(log,"DIV V[%x] = V[%x] / V[%x]",b3,b5,b6);
+#ifdef DEBUG
+			 printf("DIV V[%x] = V[%x] / V[%x]",b3,b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"DIV V[%x] = V[%x] / V[%x]",b3,b5,b6);
+#endif
 			break;
 		case 58: // B0 0X 0N 00		SHL RX, N
 			if((Uint16)(V[b5]<<b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]<<b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]<<=b3;
-			if(debug) printf("SHL V[%x] <<= %x",b5,b3);
-			if(tolog) fprintf(log,"SHL V[%x] <<= %x",b5,b3);
+#ifdef DEBUG
+			 printf("SHL V[%x] <<= %x",b5,b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHL V[%x] <<= %x",b5,b3);
+#endif
 			break;
 		case 59: // B1 0X 0N 00		SHR RX, N
 			if((Uint16)(V[b5]>>b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]>>b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]>>=b3;
-			if(debug) printf("SHR V[%x] >>= %x",b5,b3);
-			if(tolog) fprintf(log,"SHR V[%x] >>= %x",b5,b3);
+#ifdef DEBUG
+			 printf("SHR V[%x] >>= %x",b5,b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHR V[%x] >>= %x",b5,b3);
+#endif
 			break;
 		case 60: // B2 0X 0N 00		SAR RX, N
 			if((Uint16)(V[b5]>>b3)==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]>>b3))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]>>=b3;
-			if(debug) printf("SHR V[%x] >>= %x",b5,b3);
-			if(tolog) fprintf(log,"SHR V[%x] >>= %x",b5,b3);
+#ifdef DEBUG
+			 printf("SHR V[%x] >>= %x",b5,b3);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHR V[%x] >>= %x",b5,b3);
+#endif
 			break;
 		case 61: // B3 YX 00 00		SHL RX, RY
 			printf("\n%x << %x = %x\n",V[b5],(V[b6]&0xf),V[b5]<<b3);
 			if((Uint16)(V[b5]<<(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]<<(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]<<=(V[b6]&0xf);
-			if(debug) printf("SHL V[%x] >>= V[%x]&0xf",b5,b6);
-			if(tolog) fprintf(log,"SHL V[%x] >>= V[%x]&0xf",b5,b6);
+#ifdef DEBUG
+			 printf("SHL V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHL V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
 			break;
 		case 62: // B4 YX 00 00		SHR RX, RY	
 			if((Uint16)(V[b5]>>(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]>>(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]>>=(V[b6]&0xf);
-			if(debug) printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
-			if(tolog) fprintf(log,"SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#ifdef DEBUG
+			 printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
 			break;
 		case 63: // B5 YX 00 00		SAR RX, RY	
 			if((Uint16)(V[b5]>>(V[b6]&0xf))==0) setFlag(0x4,1); else setFlag(0x4,0);
 			if(((Uint16)(V[b5]>>(V[b6]&0xf)))&0x8000) setFlag(0x80,1); else setFlag(0x80,0);
 			V[b5]>>=(V[b6]&0xf);
-			if(debug) printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
-			if(tolog) fprintf(log,"SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#ifdef DEBUG
+			 printf("SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
+#ifdef TOLOG
+			fprintf(log,"SHR V[%x] >>= V[%x]&0xf",b5,b6);
+#endif
 			break;
 		case 64: // C0 0X 00 00		PUSH RX
-			printf("PUSH RX\n");
-			if(tolog) fprintf(log,"PUSH RX\n");
+			ram[stack+sp] = (V[b5]&0xff00)>>8;
+			ram[stack+sp+1] = V[b5]&0xff;
+			sp += 2;
+#ifdef DEBUG
+			printf("PUSH RX");
+#endif
+#ifdef TOLOG
+			fprintf(log,"PUSH RX");
+#endif
 			break;
 		case 65: // C1 0X 00 00		POP  RX
-			printf("POP RX\n");
-			if(tolog) fprintf(log,"POP RX\n");
+			sp -= 2;
+			V[b5] = (ram[stack+sp]<<8) + ram[stack+sp+1];
+#ifdef DEBUG
+			printf("POP RX");
+#endif
+#ifdef TOLOG
+			fprintf(log,"POP RX");
+#endif
 			break;
 		case 66: // C2 00 00 00		PUSHALL
-			printf("PUSHALL\n");
-			if(tolog) fprintf(log,"PUSHALL\n");
+			for(i=0;i<0x10;i++) {
+				ram[stack+sp+(i*2)] = (V[i]&0xff00)>>8;
+				ram[stack+sp+(i*2)+1] = V[i]&0xff;
+			}
+			sp += 32;
+#ifdef DEBUG
+			printf("PUSHALL");
+#endif
+#ifdef TOLOG
+			fprintf(log,"PUSHALL");
+#endif
 			break;
 		case 67: // C3 00 00 00		POPALL
-			printf("POPALL\n");
-			if(tolog) fprintf(log,"POPALL\n");
+			sp -= 32;
+			for(i=0;i<0x10;i++) {
+				V[i] = (ram[stack+sp+(i*2)]<<8) + ram[stack+sp+(i*2)+1];
+			}
+#ifdef DEBUG
+			printf("POPALL");
+#endif
+#ifdef TOLOG
+			fprintf(log,"POPALL");
+#endif
 			break;
 		case 68: // C4 00 00 00		PUSHF
-			printf("PUSHF\n");
-			if(tolog) fprintf(log,"PUSHF\n");
+			ram[stack+sp] = F;
+			sp += 2;
+#ifdef DEBUG
+			printf("PUSHF");
+#endif
+#ifdef TOLOG
+			fprintf(log,"PUSHF");
+#endif
 			break;
 		case 69: // C5 00 00 00		POPF
-			printf("POPF\n");
-			if(tolog) fprintf(log,"POPF\n");
+			sp -= 2;
+			F = ram[stack+sp];
+#ifdef DEBUG
+			printf("POPF");
+#endif
+#ifdef TOLOG
+			fprintf(log,"POPF");
+#endif
 			break;
 		case 70: // D0 00 LL HH     PAL HHLL
-			printf("PAL HHLL\n");
-			if(tolog) fprintf(log,"PAL HHLL\n");
+#ifdef DEBUG
+			printf("PAL HHLL");
+#endif
+#ifdef TOLOG
+			fprintf(log,"PAL HHLL");
+#endif
 			break;
 		case 71: // D1 0x 00 00     PAL Rx
-			printf("PAL Rx\n");
-			if(tolog) fprintf(log,"PAL Rx\n");
+#ifdef DEBUG
+			printf("PAL Rx");
+#endif
+#ifdef TOLOG
+			fprintf(log,"PAL Rx");
+#endif
 			break;
 		default:
+#ifdef DEBUG
 			printf("\n\n*************************************************************************\n"
 				"Unknow instruction\n*************************************************************************\n\n");
+#endif
 			break;
 	}
 	
-	if(debug) printf("\n");
-	if(tolog) fprintf(log,"\n");
+//	timer.stop();
+//	cout << "apres switch : " << timer.getElapsedTimeInMilliSec() << " ms.\n";
+//	timer.start();
 	
-	
+#ifdef DEBUG
+	printf("\n");
+#endif
+#ifdef TOLOG
+	fprintf(log,"\n");
+	nb_op++;
+#endif
 	vblank=0;
 	pc+=4;
-	nb_op++;
 	return continuer;
 }
 void cpu::initialiserJump() {
@@ -691,22 +999,36 @@ void cpu::drawSprite(int16 b5,int16 b6,Uint16 adr) {
 //		printf("%x : %x\n",j,ram[j]);
 //	}
 	
-	if(debug) printf("\n");
+#ifdef DEBUG
+	printf("\n");
+#endif
+	
+//	timer.start();
+	
 	for(j=0;j<w;j++) {
 		y = (((int16)V[b6])+j);
 		for(i=0;i<h;i++) {
 			x = (((int16)V[b5])+i);
 			if(x<0 || y<0) continue;
-			if((a%2)==0) c=((ram[adr+(a/2)]&0xf0)>>4); else c=(ram[adr+(a/2)]&0x0f);
+//			if((a%2)==0) c=((ram[adr+(a/2)]&0xf0)>>4); else c=(ram[adr+(a/2)]&0x0f);
+			if(a^=1) c=((ram[adr+(a/2)]&0xf0)>>4); else c=(ram[adr+(a/2)]&0x0f);
 			if(c!=0 && ecran->getPixel(x,y)->getColor()!=0) carry=1;
 			if(c==0) c=bg;
+//			timer.start();
 			ecran->drawPixel(x,y,c);
-			if(debug) printf("(%d,%d) : %x\n",x,y,c);
+//			timer.stop();
+//			cout << timer.getElapsedTimeInMilliSec() << " ms.\n";
+#ifdef DEBUG
+			printf("(%d,%d) : %x\n",x,y,c);
+#endif
 			a++;
 		}
 	}
 	if(carry) setFlag(0x2,1); else setFlag(0x2,0);
-	ecran->printScreen();
+	
+//	timer.stop();
+//	cout << timer.getElapsedTimeInMilliSec() << " ms.\n";
+//	ecran->printScreen();
 }
 Uint8 cpu::loadGame(char* file) {
 	FILE *jeu=NULL;

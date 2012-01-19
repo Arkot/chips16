@@ -26,6 +26,7 @@
 
 #include "types.h"
 #include "screen.h"
+#include "timer.h"
 #include <iostream>
 #include <cstdlib>
 
@@ -42,7 +43,6 @@ class cpu {
         
         void initialiserCpu();
 		void initialiserJump();
-        void decompter();
 		Uint32 getOpcode();
 		Uint8 getAction(Uint32 opcode);
 		Uint8 doAction(Uint32 opcode);
@@ -58,28 +58,18 @@ class cpu {
 		void setFlag(Uint8 flag, Uint8 v);
 		
         Uint8 ram[TAILLE_MEMOIRE];
-        Uint16 pc;
-        Uint16 sp;
+        Uint16 pc, sp, stack;
         Uint16 V[16];
-//        Uint16 saut[16];
-		Uint8 F;
-		Uint8 fliph, flipv;
-//		Uint8 vblank;
-//      Uint8 nbsaut;
-        Uint8 cptJeu;
-        Uint8 cptSon;
+		Uint8 F, fliph, flipv, w, h, bg;
 		Uint8 touche[16];
-		Uint8 w,h;
-		Uint8 bg;
 		Uint32 rom_size;
 		JUMP jp;
-		Uint8 debug;
 		
 		SDL_Event event;
 		
-		Uint8 tolog;
 		Uint32 nb_op;
 		FILE *log,*dump;
+		Timer timer;
 };
 
 #endif	/* CPU_H */

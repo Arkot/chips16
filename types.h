@@ -38,9 +38,9 @@ typedef short int16;
 #define TAILLE_MEMOIRE 65536
 #define ADRESSE_DEBUT 0
 #define NBOPCODE 72
-//#define VITESSE_CPU 16666
+#define VITESSE_CPU 16666
 #define FPS 16
-#define VITESSE_CPU 166
+//#define VITESSE_CPU 255
 //#define FPS 160
 
 using namespace std;
